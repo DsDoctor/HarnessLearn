@@ -31,7 +31,13 @@ HTTP 层面这叫 **SSE（Server-Sent Events）**：服务器不再发一个完�
 | `finish_reason` | 就在对象上 | 只在**最后一个 chunk** 上 |
 | `usage` | 就在对象上 | 要传 `stream_options`，挂在最后一个 chunk |
 
-## chunk 的解剖（本模型实测数据）
+## chunk 的解剖（旧节点实测数据）
+
+> ⚠️ 下表是在旧节点（NVIDIA + deepseek-v4.1-flash 推理模型）上实测的。
+> 换到 zenmux + `z-ai/glm-5.3-flashx` 之后，**思考流还存不存在要重新观察** ——
+> 代码已经用 `getattr` 做了防御，不管有没有思考流都能正常跑。
+> 如果新模型不输出 `reasoning_content`，流就直接从正文开始。
+> 这本身就是换节点后的第一个实验：跑一遍，看统计里"思考 X 字"是 0 还是有值。
 
 跑起来后前 5 个 chunk 会打印原始结构，长这样：
 

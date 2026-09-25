@@ -14,6 +14,24 @@
 .venv/bin/python steps/step1_bare_call/bare_call.py
 ```
 
+## 配置去哪了？（llmkit 的由来）
+
+初版 `bare_call.py` 里有一段"读 .env → 建 client"的配置代码。
+你把第 1 步看懂之后，这段代码就没有学习价值了 —— 于是它被抽到
+项目根目录的 `llmkit/` 包里，和 `steps/` 同级：
+
+```python
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # 让脚本能找到 llmkit
+from llmkit import get_client, get_model
+
+client = get_client()   # 读 .env、校验密钥、配代理，一次搞定
+MODEL = get_model()
+```
+
+这就是 harness 演进的常态：**看懂的部分变成地基，注意力留给新东西。**
+顺带的红利：换 API 节点 / 换模型只需要改 `.env`，所有 step 的代码一行不动
+（这次从 NVIDIA 换到 zenmux，三个 step 的代码就一行没改）。
+
 ## 概念速查表
 
 | 概念 | 一句话理解 |
@@ -33,8 +51,9 @@
 
 ## 两个坑
 
-1. **API key 不要写死在代码里**：`api_key="$NVIDIA_API_KEY"` 在 Python 里是**字面字符串**，
-   不会展开环境变量（那是 Shell 的语法）。所以本项目统一从 `os.environ` 读取 + 可选 `.env` 文件。
+1. **API key 不要写死在代码里**：`api_key="$LLM_API_KEY"` 在 Python 里是**字面字符串**，
+   不会展开环境变量（那是 Shell 的语法）。所以本项目统一从 `os.environ` 读取 + 可选 `.env` 文件
+   （这件事已经由 `llmkit` 代劳了）。
 2. **`.env` 不进 git**：`.gitignore` 已排除，`.env.example` 是模板。
 
 ## 为什么 messages 是理解 harness 的钥匙

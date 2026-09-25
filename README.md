@@ -8,9 +8,10 @@
 ## 项目结构约定
 
 **每一次演进 = 一个目录**：描述写在各自的 `README.md`（主要阅读材料），
-代码里只保留最关键的注释。
+代码里只保留最关键的注释。**看懂的东西沉淀成可复用代码，收进 `llmkit/`。**
 
 ```
+llmkit/                 共用工具包：读 .env、建 client、取模型名（换节点只改 .env）
 steps/
 ├── step1_bare_call/      ✅ 裸调用：一次完整的模型调用（已过关）
 ├── step2_streaming/      🎯 流式调用：分步看到模型怎么"流"出来（当前步骤）
@@ -48,8 +49,10 @@ steps/
 
 ## 通用说明
 
-- **API key**：配置在项目根目录 `.env`（已进 `.gitignore`，不会上传），
-  模板见 `.env.example`。所有 step 的脚本都会自动读它。
-- **坑**：`api_key="$NVIDIA_API_KEY"` 在 Python 里是字面字符串，不会展开环境变量
-  （那是 Shell 语法），所以代码里统一用 `os.environ` 读取。
-- **git 推送**：仓库已配置本机代理（127.0.0.1:7897），直接 `git push` 即可。
+- **节点与密钥**：全部配置在项目根目录 `.env`（已进 `.gitignore`，不会上传），模板见 `.env.example`。
+  当前节点 zenmux（`https://zenmux.ai/api/v1`，模型 `z-ai/glm-5.3-flashx`）。
+  **以后换节点 / 换模型 = 只改 `.env`，所有代码一行不动** —— 这就是 llmkit 存在的意义。
+- **代理**：zenmux 直连不通，`.env` 里的 `LLM_PROXY` 指向本机代理（127.0.0.1:7897）；
+  git 推送也已配置走同一个代理。
+- **坑**：`api_key="$XXX"` 在 Python 里是字面字符串，不会展开环境变量
+  （那是 Shell 语法），所以代码统一从 `os.environ` 读取。

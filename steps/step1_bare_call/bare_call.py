@@ -3,40 +3,27 @@ bare_call.py — 第 1 步：最简单的一次模型调用
 
 模型只是一个"函数"：发给它一串消息（messages），它返回一段文字。
 没有记忆、没有工具、没有行动能力 —— 答完就忘。
+配置（读 .env、建 client）已抽到 llmkit/，换节点只改 .env 不改代码。
 详细解释见本目录 README.md。
 
 运行（在项目根目录下）：
     .venv/bin/python steps/step1_bare_call/bare_call.py
 """
 
-import os
 import sys
 from pathlib import Path
 
-from openai import OpenAI
+# 把项目根目录加进 import 搜索路径，才能找到共用的 llmkit 包
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# ---------- 配置：从项目根目录的 .env 读 API key ----------
-ROOT = Path(__file__).resolve().parents[2]   # steps/step1_bare_call/ 往上三级是项目根
-env_file = ROOT / ".env"
-if env_file.exists():
-    for line in env_file.read_text().splitlines():
-        if line.strip() and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+from llmkit import get_client, get_model  # noqa: E402  必须放在上面 path 调整之后
 
-API_KEY = os.environ.get("NVIDIA_API_KEY")
-if not API_KEY:
-    sys.exit("缺少 NVIDIA_API_KEY，请在项目根目录配置 .env（参考 .env.example）")
-
-# client 记住"发给谁（base_url）+ 用什么身份（api_key）"
-client = OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=API_KEY,
-)
+client = get_client()
+MODEL = get_model()
 
 # ---------- 裸调用：本质是发一个 HTTPS 请求 ----------
 completion = client.chat.completions.create(
-    model="deepseek-ai/deepseek-v4.1-flash",
+    model=MODEL,
     # messages 是模型能看到的"全部"输入：
     #   system = 岗位说明书（开发者设定）  user = 用户的问题
     # 以后这张列表会不断变长 —— "变长的列表"就是 agent 的记忆

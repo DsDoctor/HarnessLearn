@@ -13,32 +13,17 @@ agent_loop.py — 第 3 步：最简 Agent Loop（⚠️ 学完 step2 流式之�
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-from openai import OpenAI
+# 把项目根目录加进 import 搜索路径，才能找到共用的 llmkit 包
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# ---------- 配置：和 step1/step2 相同 ----------
-ROOT = Path(__file__).resolve().parents[2]
-env_file = ROOT / ".env"
-if env_file.exists():
-    for line in env_file.read_text().splitlines():
-        if line.strip() and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+from llmkit import get_client, get_model  # noqa: E402  必须放在上面 path 调整之后
 
-API_KEY = os.environ.get("NVIDIA_API_KEY")
-if not API_KEY:
-    sys.exit("缺少 NVIDIA_API_KEY，请在项目根目录配置 .env（参考 .env.example）")
-
-client = OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=API_KEY,
-)
-
-MODEL = "deepseek-ai/deepseek-v4.1-flash"
+client = get_client()
+MODEL = get_model()
 
 
 # ---------- 工具：agent 的"手" ----------
