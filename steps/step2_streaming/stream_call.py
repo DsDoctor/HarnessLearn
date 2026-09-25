@@ -49,10 +49,20 @@ print("=== 接收流：前 5 个 chunk 打印原始结构，之后直接逐字�
 
 for chunk in stream:
     n_chunks += 1
-    # 坑：不是每个 chunk 都带这两个字段（缺了就不是 None，是直接抛 AttributeError）
-    # 所以必须用 getattr 防御性取值
+
+    # 坑②：最后一个 chunk 可能 choices 是空列表（只带 usage）——
+    # zenmux 就是这样，不防一手就是 IndexError
+    if not chunk.choices:
+        if chunk.usage:
+            usage = chunk.usage
+        continue
+
+    # 坑①：字段可能整个缺失（缺了不是 None，是直接抛 AttributeError），用 getattr 防御
+    # 坑③：思考字段的名字各节点不一样 —— NVIDIA 叫 reasoning_content，zenmux 叫 reasoning
     delta = chunk.choices[0].delta
-    reasoning_piece = getattr(delta, "reasoning_content", None)
+    reasoning_piece = (
+        getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+    )
     content_piece = getattr(delta, "content", None)
 
     # 前 5 个 chunk：展开看"增量"长什么样
@@ -72,7 +82,7 @@ for chunk in stream:
             print(content_piece, end="", flush=True)   # end="" 不换行，flush=True 立刻刷屏
         full_text += content_piece
 
-    # finish_reason 和 usage 都挂在最后一个 chunk 上
+    # finish_reason 在最后一个内容 chunk 上；usage 可能在内容 chunk 或空 chunk 上
     if chunk.choices[0].finish_reason:
         finish_reason = chunk.choices[0].finish_reason
     if chunk.usage:

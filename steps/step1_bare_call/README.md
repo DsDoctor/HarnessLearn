@@ -47,7 +47,7 @@ MODEL = get_model()
 | `choices[0].message.content` | 回答正文 |
 | `finish_reason` | 模型为什么停笔：`stop`=说完，`length`=被截断 |
 | `usage` | token 账单：输入多少（prompt_tokens）、输出多少（completion_tokens） |
-| `reasoning_content` | 推理模型"先想后说"的思考过程，**不属于回答本身** |
+| `reasoning_content` | 推理模型"先想后说"的思考过程，**不属于回答本身**；字段名各节点不同（NVIDIA 叫 `reasoning_content`，zenmux 叫 `reasoning`） |
 
 ## 两个坑
 

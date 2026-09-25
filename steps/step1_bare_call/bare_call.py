@@ -54,8 +54,12 @@ print(
     f"共 {completion.usage.total_tokens} ==="
 )
 
-# 推理模型会"先想后说"：reasoning_content 是思考过程，不属于回答本身
-reasoning = getattr(completion.choices[0].message, "reasoning_content", None)
+# 推理模型会"先想后说"：思考过程不属于回答本身。
+# 坑：这个字段的名字各节点不同 —— NVIDIA 叫 reasoning_content，zenmux 叫 reasoning
+reasoning = (
+    getattr(completion.choices[0].message, "reasoning_content", None)
+    or getattr(completion.choices[0].message, "reasoning", None)
+)
 if reasoning:
     print("\n=== 思考过程（reasoning_content，前 200 字） ===")
     print(reasoning[:200] + "……")
