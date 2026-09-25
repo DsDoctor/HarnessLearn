@@ -51,7 +51,7 @@ MODEL = get_model()
 
 ## 两个坑
 
-1. **API key 不要写死在代码里**：`api_key="$LLM_API_KEY"` 在 Python 里是**字面字符串**，
+1. **API key 不要写死在代码里**：`api_key="$ZENMUX_API_KEY"` 在 Python 里是**字面字符串**，
    不会展开环境变量（那是 Shell 的语法）。所以本项目统一从 `os.environ` 读取 + 可选 `.env` 文件
    （这件事已经由 `llmkit` 代劳了）。
 2. **`.env` 不进 git**：`.gitignore` 已排除，`.env.example` 是模板。

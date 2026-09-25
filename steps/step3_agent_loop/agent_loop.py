@@ -68,6 +68,22 @@ TOOLS_SPEC = [
 
 
 # ---------- Agent Loop：harness 的心脏 ----------
+def memory_shape(messages) -> str:
+    """把 messages 压缩成一行"角色序列"，让 agent 的记忆形状肉眼可见。
+
+    注意列表里混着两种东西：我们自己 append 的 dict，和模型返回的 message 对象。
+    （真实 harness 里通常会统一成 dict —— 这里保留原样，正好看清这个事实）
+    getattr 对两种都成立：dict 没有该属性时返回 None，不会抛错。
+    """
+    parts = []
+    for m in messages:
+        role = m["role"] if isinstance(m, dict) else m.role
+        if getattr(m, "tool_calls", None):  # 带 tool_calls 的 assistant = "我想调工具"
+            role += "(要🔧)"
+        parts.append(role)
+    return " → ".join(parts)
+
+
 def agent_loop(user_input: str, max_turns: int = 8) -> str:
     # messages 是 agent 的全部记忆：每轮模型回复、每次工具结果都追加进来
     messages = [
@@ -83,6 +99,9 @@ def agent_loop(user_input: str, max_turns: int = 8) -> str:
     ]
 
     for turn in range(1, max_turns + 1):
+        # 第 0 步：先看一眼这次要发给模型的全部记忆 —— 它每一轮都在变长
+        print(f"[turn {turn}] 📜 记忆形状: {memory_shape(messages)}")
+
         # 第 1 步：把全部历史发给模型（和 step1 相同，只多传 tools=）
         completion = client.chat.completions.create(
             model=MODEL,
