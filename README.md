@@ -25,6 +25,7 @@ steps/
 .venv/bin/python steps/step2_streaming/stream_call.py
 .venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题
 .venv/bin/python steps/step3_agent_loop/agent_loop.py "你的问题"      # 自定义问题
+.venv/bin/python steps/step3_agent_loop/agent_loop.py --stream       # 流式直播：每个 chunk + 真实 JSON 全文
 ```
 
 ## 学习路线
@@ -54,8 +55,9 @@ steps/
 - **提供方与密钥**：llmkit 内置一张提供方注册表（`llmkit/config.py` 的 `PROVIDERS`），
   密钥只放在项目根目录 `.env`（已进 `.gitignore`，不会上传），模板见 `.env.example`。
   当前用哪个提供方，由 `.env` 的 `LLM_PROVIDER` 一行决定：
-  - `zenmux` —— `z-ai/glm-5.3-flashx`，直连不通，走本机代理
-  - `nvidia` —— `deepseek-ai/deepseek-v4.1-flash`，国内直连
+  - `zenmux` —— `z-ai/glm-5.3-flashx`，直连不通，走本机代理（**首选**）
+  - `nvidia` —— `deepseek-ai/deepseek-v4.1-flash`，国内直连，
+    但推理接口经常超时（实测：models 秒回、chat 挂死），当备用
 
   **切换 = 改一行；新增提供方 = 注册表加一条 + `.env` 放密钥；换模型 = `<提供方>_MODEL` 覆盖。**
   这套升级是被逼出来的：代理一挂，单提供方项目就瘫了（实测教训）。

@@ -4,8 +4,9 @@
 
 ```bash
 # 运行（在项目根目录下）
-.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题
+.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题（浓缩打印）
 .venv/bin/python steps/step3_agent_loop/agent_loop.py "你的问题"      # 自定义问题
+.venv/bin/python steps/step3_agent_loop/agent_loop.py --stream       # 流式直播：每个 chunk + 真实 JSON 全文
 ```
 
 ## 兑现上一版埋下的两条核心认知
@@ -135,18 +136,56 @@ max = 9.8
 2. **模型可能"幻觉"出不存在的工具**：叫一个注册表里没有的名字 → `KeyError` 直接崩。
    真实 harness 会把"没有这个工具"作为工具结果喂回去，让模型自己纠错。
 3. **模型可能给坏 JSON**：`json.loads()` 抛异常，循环死在半路。
-4. **`messages` 里混着两种东西**：自己 append 的 dict 和模型返回的 message 对象
-   （`memory_shape()` 里那个 `isinstance` 分支就是在伺候这个）。真实 harness 通常统一转成 dict。
+4. **消息统一成 dict（v2 修复）**：上一版 `messages` 里混着自己 append 的 dict 和
+   SDK 返回的 message 对象，伺候两种类型很别扭。这一版模型返回一律转普通 dict ——
+   能 `json.dumps` 展示、能落盘、能直接当请求体，这也是真实 harness 的通行做法。
 
 > 教学代码故意不防这些 —— 防护代码会淹没主干。
 > 动手实验 5 会让你**亲手触发一次**坑 2，眼见为实。
 
-## 流式去哪了？
+## 流式去哪了？—— 已内置成 `--stream` 直播模式（循环 × 流式的合体）
 
-step3 故意退回 `stream=False`：这一步要看清"循环"这个主干，别让流的细节搅局。
-真实 harness（比如你现在用的 DSH）是两者的合体：
-**用 step2 的方式流式接收，跑 step3 的循环** —— 工具调用同样以增量 chunk 流出。
-合体方法见动手实验 6。
+默认模式仍然是 `stream=False`：先看清"循环"这个主干，别让流的细节搅局。
+想看真实 harness 的样子（比如你现在用的 DSH），加 `--stream`：
+每个 chunk 都打出来，且每轮把**真实 JSON 全文**打出来 —— 发出的完整 messages
+（请求体）、从流里拼装出的 assistant 消息、回填的 tool 消息。
+一次完整运行留档在 `stream_run.log`（1000+ 行，不进 git）。
+
+zenmux + glm-5.3-flashx 实跑摘录（`--stream`）：
+
+```
+# turn 1：先流式思考（英文，71 个 chunk）……然后工具调用几乎整块到达：
+[chunk 72] 工具[0] id='call_fe027a2deb714c978ba84698'
+[chunk 72] 工具[0] name='run_bash'
+[chunk 72] 工具[0] args += '{"command":"ls -la"}'
+[chunk 73] 工具[1] args += '{"command":"python3 -c \\"print(9.11 > 9.8, 9.8 > 9.11)\\""}'
+[chunk 74] finish_reason='tool_calls'     ← 第三个 finish_reason！step1 只见过 stop / length
+(本轮： 75 个 chunk，思考 291 字，上下文共 385 tokens)
+
+# 拼装出的 assistant 消息（即将进入记忆）：
+[{"role": "assistant", "content": null,
+  "tool_calls": [{"id": "call_fe027…", "type": "function",
+                  "function": {"name": "run_bash", "arguments": "{\"command\":\"ls -la\"}"}},
+                 …第二个工具…]}]
+
+# turn 2 的正文才是逐词流（step2 见过的打字机源头）：
+[chunk 93] 正文 '##'
+[chunk 94] 正文 ' 当前'
+[chunk 95] 正文 '目录'
+[chunk 382] finish_reason='stop'
+(本轮： 383 个 chunk，思考 295 字，上下文共 1039 tokens)
+```
+
+四个值得盯住的细节：
+
+1. **文本逐词流，工具调用几乎整块到**：zenmux 的正文一个 chunk 一两个词（一轮 383 个），
+   而 tool_calls 三片就到齐。但拼装代码必须按"碎片"写（`arguments` 用 `+=` 接）——
+   别的提供方可能真的碎片化，防御性拼装接得住任何节奏。
+2. **finish_reason 的第三个值**：要工具的轮次是 `tool_calls`，最终轮才是 `stop`。
+3. **glm 也并行要了两个工具**（和 nvidia 的 deepseek 一样）：一条 assistant 消息带两个
+   tool_calls，harness 逐个执行、逐个回填。
+4. **turn 2 的请求体带着完整的 ls 输出**：`⬆️` 那段 JSON 有 800 多行 ——
+   这就是"全部历史每轮重发一遍"的实感，上下文 385 → 1039 tokens。
 
 ## 理解检查
 
@@ -167,5 +206,6 @@ step3 故意退回 `stream=False`：这一步要看清"循环"这个主干，别
 4. **把 `max_turns` 改成 1**：亲眼看保险丝熔断，agent 被掐死在半路
 5. **制造一次事故**：把 `TOOLS_SPEC` 里的名字改成 `bash_run`（`TOOL_FUNCS` 不动），
    让模型去调 —— 亲眼看 `KeyError` 崩溃，体会真实 harness 必须防什么
-6. **（进阶）合体 step2**：把 `stream=True` 接进来。提示：`tool_calls` 也在 delta 里，
-   要按 `index` 拼装增量 —— 比拼文字难一档，但真实 harness 天天在干
+6. **读懂流式拼装**（原"合体实验"已内置为 `--stream`）：打开 `ask_model_stream` 回答
+   三个问题 —— 为什么 `id` / `name` 直接赋值而 `arguments` 必须 `+=` 接？
+   为什么思考过程不进 messages？`finish_reason` 在两种轮次里分别是什么值？
