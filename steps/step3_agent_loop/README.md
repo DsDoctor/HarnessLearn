@@ -3,10 +3,9 @@
 **状态：🎯 当前步骤**
 
 ```bash
-# 运行（在项目根目录下）
-.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题（浓缩打印）
+# 运行（在项目根目录下，PyCharm 直接点运行也一样）
+.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题（流式直播）
 .venv/bin/python steps/step3_agent_loop/agent_loop.py "你的问题"      # 自定义问题
-.venv/bin/python steps/step3_agent_loop/agent_loop.py --stream       # 流式直播：每个 chunk + 真实 JSON 全文
 ```
 
 ## 兑现上一版埋下的两条核心认知
@@ -79,7 +78,10 @@ while True:
 `max_turns` 是本项目遇到的第一个**安全机制**：不信任模型的自我节制，用硬上限兜底。
 真实 harness 的权限 / 审批系统方向完全一致，只是精细得多。
 
-## 一次真实运行的解剖（2026-09-26 实跑，nvidia 直连）
+## 一次真实运行的解剖（浓缩视图）
+
+> 下面这份是浓缩视图（出自早期版本的一次 nvidia 直连实跑），用来把"循环主干"看清楚；
+> 现在直接运行 = 流式直播，输出比这细得多（见下一节）。
 
 > 这次实跑正好赶上本机代理故障（zenmux 走不了），靠 llmkit v2 切到 nvidia 直连完成
 > —— 多提供方互为备份，第一次实战就派上用场。
@@ -143,49 +145,60 @@ max = 9.8
 > 教学代码故意不防这些 —— 防护代码会淹没主干。
 > 动手实验 5 会让你**亲手触发一次**坑 2，眼见为实。
 
-## 流式去哪了？—— 已内置成 `--stream` 直播模式（循环 × 流式的合体）
+## 流式直播（默认模式）—— 循环 × 流式的合体
 
-默认模式仍然是 `stream=False`：先看清"循环"这个主干，别让流的细节搅局。
-想看真实 harness 的样子（比如你现在用的 DSH），加 `--stream`：
-每个 chunk 都打出来，且每轮把**真实 JSON 全文**打出来 —— 发出的完整 messages
-（请求体）、从流里拼装出的 assistant 消息、回填的 tool 消息。
-一次完整运行留档在 `stream_run.log`（1000+ 行，不进 git）。
+直接运行就是流式直播（真实 harness 的样子，比如你现在用的 DSH）。
+每个 chunk 的处理就是一次"解析"，打印分两层：
 
-zenmux + glm-5.3-flashx 实跑摘录（`--stream`）：
+- 🆕 **每种原始结构第一次出现时，打一行完整 repr** —— 字段名、嵌套关系一眼看全
+- 之后每个 chunk 一行浓缩行，**字段路径 = 解析时要走的路**
+
+每轮还会把真实 JSON 全文打出来：发出的完整 messages（请求体）、拼装出的
+assistant 消息、回填的 tool 消息。完整留档 `stream_run.log`（不进 git）。
+
+zenmux + glm-5.3-flashx 实跑摘录：
 
 ```
-# turn 1：先流式思考（英文，71 个 chunk）……然后工具调用几乎整块到达：
-[chunk 72] 工具[0] id='call_fe027a2deb714c978ba84698'
-[chunk 72] 工具[0] name='run_bash'
-[chunk 72] 工具[0] args += '{"command":"ls -la"}'
-[chunk 73] 工具[1] args += '{"command":"python3 -c \\"print(9.11 > 9.8, 9.8 > 9.11)\\""}'
-[chunk 74] finish_reason='tool_calls'     ← 第三个 finish_reason！step1 只见过 stop / length
-(本轮： 75 个 chunk，思考 291 字，上下文共 385 tokens)
+# 首个 chunk：delta 全貌。注意最后那个字段名 —— zenmux 叫 reasoning，
+# nvidia 叫 reasoning_content，所以代码里才要 getattr 两连防御
+[chunk 1] 🆕 原始结构首见[首个chunk·delta全貌] ChoiceDelta(content=None,
+    function_call=None, refusal=None, role='assistant', tool_calls=None, reasoning='The')
+[chunk 2] reasoning += ' user'
+…（英文思考流，共 84 个 chunk）…
 
-# 拼装出的 assistant 消息（即将进入记忆）：
-[{"role": "assistant", "content": null,
-  "tool_calls": [{"id": "call_fe027…", "type": "function",
-                  "function": {"name": "run_bash", "arguments": "{\"command\":\"ls -la\"}"}},
-                 …第二个工具…]}]
+# 工具调用增量：嵌套最深的结构，一行看全 —— 和下面的解析行逐字对应
+[chunk 85] 🆕 原始结构首见[工具调用增量·嵌套最深] ChoiceDelta(..., tool_calls=[
+    ChoiceDeltaToolCall(index=0, id='call_b453…',
+    function=ChoiceDeltaToolCallFunction(arguments='{"command":"ls -la"}',
+                                         name='run_bash'), type='function')])
+[chunk 85] tool_calls[0].id = 'call_b453cf0d0ad643dea1b09193'
+[chunk 85] tool_calls[0].function.name = 'run_bash'
+[chunk 85] tool_calls[0].function.arguments += '{"command":"ls -la"}'
+[chunk 86] tool_calls[1].id = 'call_2924…'                    ← 又是并行双工具
+[chunk 86] tool_calls[1].function.name = 'run_bash'
+[chunk 86] tool_calls[1].function.arguments += '{"command":"python3 -c …"}'
 
-# turn 2 的正文才是逐词流（step2 见过的打字机源头）：
-[chunk 93] 正文 '##'
-[chunk 94] 正文 ' 当前'
-[chunk 95] 正文 '目录'
-[chunk 382] finish_reason='stop'
-(本轮： 383 个 chunk，思考 295 字，上下文共 1039 tokens)
+# finish_reason 挂在 choice 上（不在 delta 上）；要工具的轮次值是 'tool_calls'
+[chunk 87] finish_reason = 'tool_calls'
+# zenmux 的 usage 单独挂在一个 choices=[] 的空 chunk 上（nvidia 挂在最后内容 chunk 上）
+[chunk 88] 🆕 原始结构首见[空chunk·只带usage] ChatCompletionChunk(..., choices=[], usage=…)
+(本轮：88 个 chunk，思考 331 字，上下文共 439 tokens)
 ```
 
 四个值得盯住的细节：
 
-1. **文本逐词流，工具调用几乎整块到**：zenmux 的正文一个 chunk 一两个词（一轮 383 个），
-   而 tool_calls 三片就到齐。但拼装代码必须按"碎片"写（`arguments` 用 `+=` 接）——
-   别的提供方可能真的碎片化，防御性拼装接得住任何节奏。
-2. **finish_reason 的第三个值**：要工具的轮次是 `tool_calls`，最终轮才是 `stop`。
-3. **glm 也并行要了两个工具**（和 nvidia 的 deepseek 一样）：一条 assistant 消息带两个
-   tool_calls，harness 逐个执行、逐个回填。
+1. **repr 里的嵌套路径就是解析路径**：浓缩行 `tool_calls[0].function.name` 对应
+   原始结构里 `ChoiceDeltaToolCall.function.name` —— 所谓解析，无非沿着这串路径取值。
+2. **文本逐词流，工具调用几乎整块到**：zenmux 正文一个 chunk 一两个词
+   （turn 2 共 409 个 chunk），而 tool_calls 每个工具一片就到齐。但拼装代码必须按
+   碎片写（`arguments` 用 `+=` 接）—— 别的提供方可能真的碎片化，防御性拼装接得住任何节奏。
+3. **finish_reason 的第三个值**：要工具的轮次是 `tool_calls`，最终轮才是 `stop`
+   （step1 只见过 stop / length）。
 4. **turn 2 的请求体带着完整的 ls 输出**：`⬆️` 那段 JSON 有 800 多行 ——
-   这就是"全部历史每轮重发一遍"的实感，上下文 385 → 1039 tokens。
+   "全部历史每轮重发一遍"的实感，上下文 439 → 1135 tokens（step5 的问题意识）。
+
+想对比 step1 的"一次性接收"（同样的信息、一整块到货）：把 `agent_loop.py` 顶部的
+`USE_STREAM` 改成 `False`，不需要任何运行参数。
 
 ## 理解检查
 
@@ -206,6 +219,7 @@ zenmux + glm-5.3-flashx 实跑摘录（`--stream`）：
 4. **把 `max_turns` 改成 1**：亲眼看保险丝熔断，agent 被掐死在半路
 5. **制造一次事故**：把 `TOOLS_SPEC` 里的名字改成 `bash_run`（`TOOL_FUNCS` 不动），
    让模型去调 —— 亲眼看 `KeyError` 崩溃，体会真实 harness 必须防什么
-6. **读懂流式拼装**（原"合体实验"已内置为 `--stream`）：打开 `ask_model_stream` 回答
-   三个问题 —— 为什么 `id` / `name` 直接赋值而 `arguments` 必须 `+=` 接？
+6. **读懂流式拼装**（默认模式就是它）：打开 `ask_model_stream` 回答三个问题 ——
+   为什么 `id` / `name` 直接赋值而 `arguments` 必须 `+=` 接？
    为什么思考过程不进 messages？`finish_reason` 在两种轮次里分别是什么值？
+   再把 `USE_STREAM` 改成 `False` 跑同一个问题，对比"同样的信息、两种到货方式"。

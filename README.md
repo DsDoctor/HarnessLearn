@@ -23,9 +23,8 @@ steps/
 ```bash
 .venv/bin/python steps/step1_bare_call/bare_call.py
 .venv/bin/python steps/step2_streaming/stream_call.py
-.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题
+.venv/bin/python steps/step3_agent_loop/agent_loop.py                # 默认演示问题（流式直播）
 .venv/bin/python steps/step3_agent_loop/agent_loop.py "你的问题"      # 自定义问题
-.venv/bin/python steps/step3_agent_loop/agent_loop.py --stream       # 流式直播：每个 chunk + 真实 JSON 全文
 ```
 
 ## 学习路线
